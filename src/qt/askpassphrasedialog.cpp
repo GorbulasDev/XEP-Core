@@ -89,6 +89,14 @@ AskPassphraseDialog::~AskPassphraseDialog()
 void AskPassphraseDialog::setModel(WalletModel *_model)
 {
     this->model = _model;
+
+    if (model && mode == Unlock) {
+        ui->unlockAskForPasswordCheckbox->setChecked(model->getEncryptionStatus() == WalletModel::UnlockedAskForPassword);
+    } else {
+        ui->unlockAskForPasswordCheckbox->setChecked(false);
+        ui->unlockAskForPasswordCheckbox->setEnabled(false);
+        ui->unlockAskForPasswordCheckbox->setVisible(false);
+    }
 }
 
 void AskPassphraseDialog::accept()
@@ -166,7 +174,7 @@ void AskPassphraseDialog::accept()
         } break;
     case Unlock:
         try {
-            if (!model->setWalletLocked(false, oldpass)) {
+            if (!model->setWalletLocked(false, ui->unlockAskForPasswordCheckbox->isChecked(), oldpass)) {
                 QMessageBox::critical(this, tr("Wallet unlock failed"),
                                       tr("The passphrase entered for the wallet decryption was incorrect."));
             } else {
