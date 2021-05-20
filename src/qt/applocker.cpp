@@ -87,10 +87,12 @@ void AppLocker::closeEvent(QCloseEvent *event)
 {
     if(walletLocked){
         int ret =  QMessageBox::warning(this, "WARNING", "Wallet application will exit, continue?", QMessageBox::Ok | QMessageBox::Cancel, QMessageBox::Cancel);
-        if(ret == QMessageBox::Ok){
+        if(ret == QMessageBox::Cancel){
+            event->ignore();
+        }else{
             Q_EMIT quitAppFromWalletLocker();
+            event->accept();
         }
-        event->accept();
     }else if(ui->stackedWidget->currentIndex() == 1){
         event->accept();
     }else{
