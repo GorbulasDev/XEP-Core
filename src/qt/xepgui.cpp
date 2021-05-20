@@ -4,6 +4,7 @@
 
 #include <qt/xepgui.h>
 
+#include <qt/applocker.h>
 #include <qt/xepunits.h>
 #include <qt/clientmodel.h>
 #include <qt/createwalletdialog.h>
@@ -97,6 +98,7 @@ XEPGUI::XEPGUI(interfaces::Node& node, const PlatformStyle *_platformStyle, cons
     rpcConsole = new RPCConsole(node, _platformStyle, nullptr);
     helpMessageDialog = new HelpMessageDialog(this, false);
     updateWalletDialog = new UpdateWalletDialog(this);
+    appLocker = new AppLocker;
 #ifdef ENABLE_WALLET
     if(enableWallet)
     {
@@ -206,6 +208,8 @@ XEPGUI::XEPGUI(interfaces::Node& node, const PlatformStyle *_platformStyle, cons
 
     connect(labelBlocksIcon, &GUIUtil::ClickableLabel::clicked, this, &XEPGUI::showModalOverlay);
     connect(progressBar, &GUIUtil::ClickableProgressBar::clicked, this, &XEPGUI::showModalOverlay);
+
+    connect(appLocker, &AppLocker::quitAppFromWalletLocker, quitAction, &QAction::trigger);
 #ifdef ENABLE_WALLET
     if(enableWallet) {
         connect(walletFrame, &WalletFrame::requestedSyncWarningInfo, this, &XEPGUI::showModalOverlay);
@@ -321,6 +325,8 @@ void XEPGUI::createActions()
     unlockWalletAction = new QAction(tr("&Unlock Wallet..."), this);
     unlockWalletAction->setToolTip(tr("Unlock wallet"));
     lockWalletAction = new QAction(tr("Lock Wallet"), this);
+    appLockerAction = new QAction(tr("Lock application"), this);
+    appLockerAction->setToolTip(tr("Unlock access to the wallet application"));
     backupWalletAction = new QAction(tr("&Backup Wallet..."), this);
     backupWalletAction->setStatusTip(tr("Backup wallet to another location"));
     changePassphraseAction = new QAction(tr("&Change Passphrase..."), this);
@@ -395,6 +401,7 @@ void XEPGUI::createActions()
         connect(encryptWalletAction, &QAction::triggered, walletFrame, &WalletFrame::encryptWallet);
         connect(unlockWalletAction, &QAction::triggered, walletFrame, &WalletFrame::unlockWallet);
         connect(lockWalletAction, &QAction::triggered, walletFrame, &WalletFrame::lockWallet);
+        connect(appLockerAction, &QAction::triggered, appLocker, &AppLocker::showLocker);
         connect(backupWalletAction, &QAction::triggered, walletFrame, &WalletFrame::backupWallet);
         connect(changePassphraseAction, &QAction::triggered, walletFrame, &WalletFrame::changePassphrase);
         connect(signMessageAction, &QAction::triggered, [this]{ showNormalIfMinimized(); });
@@ -539,6 +546,8 @@ void XEPGUI::createMenuBar()
             GUIUtil::bringToFront(this);
         });
 #endif
+        window_menu->addSeparator();
+        window_menu->addAction(appLockerAction);
         window_menu->addSeparator();
         window_menu->addAction(usedSendingAddressesAction);
         window_menu->addAction(usedReceivingAddressesAction);
