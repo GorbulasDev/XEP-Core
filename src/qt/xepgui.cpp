@@ -210,6 +210,7 @@ XEPGUI::XEPGUI(interfaces::Node& node, const PlatformStyle *_platformStyle, cons
     connect(progressBar, &GUIUtil::ClickableProgressBar::clicked, this, &XEPGUI::showModalOverlay);
 
     connect(appLocker, &AppLocker::quitAppFromWalletLocker, quitAction, &QAction::trigger);
+    connect(appLocker, &AppLocker::lockingApp, this, &XEPGUI::setPrivacy);
 #ifdef ENABLE_WALLET
     if(enableWallet) {
         connect(walletFrame, &WalletFrame::requestedSyncWarningInfo, this, &XEPGUI::showModalOverlay);

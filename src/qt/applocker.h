@@ -28,6 +28,7 @@ private:
     void setLock();
 
 Q_SIGNALS:
+    void lockingApp(bool);
     void quitAppFromWalletLocker();
 
 public Q_SLOTS:

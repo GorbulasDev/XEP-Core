@@ -6,15 +6,15 @@ AppLocker::AppLocker(QWidget *parent)
     , ui(new Ui::AppLocker)
 {
     ui->setupUi(this);
-    this->setWindowTitle("Wallet locker");
+    this->setWindowTitle(tr("Wallet locker"));
     this->setWindowModality(Qt::ApplicationModal);
     QIntValidator *validatorInt = new QIntValidator(1, 999999999, this);
 
     //lock view (index 1)
     ui->stackedWidget->setCurrentIndex(1);
-    ui->headLabel->setText("Set a PIN code to lock your wallet:\n");
-    ui->messageLabel->setText("\n- PIN code should be at least a 6 digit number.\n"
-                              "- PIN is only valid for this session");
+    ui->headLabel->setText(tr("Set a PIN code to lock your wallet:\n"));
+    ui->messageLabel->setText(tr("\n- PIN code should be at least a 6 digit number.\n"
+                              "- PIN is only valid for this session"));
     ui->buttonBox->button(QDialogButtonBox::Ok)->setText("Lock");
     ui->pinLineEdit->setValidator(validatorInt);
     ui->pinLineEdit->setEchoMode(QLineEdit::Password);
@@ -22,8 +22,8 @@ AppLocker::AppLocker(QWidget *parent)
     ui->confirmLineEdit->setEchoMode(QLineEdit::Password);
 
     //unlock view
-    ui->lockLabel->setText("Your wallet is locked.\n");
-    ui->unlocklabel->setText("PIN");
+    ui->lockLabel->setText(tr("Your wallet is locked.\n"));
+    ui->unlocklabel->setText(tr("PIN"));
     ui->unlockLineEdit->setValidator(validatorInt);
     ui->unlockLineEdit->setEchoMode(QLineEdit::Password);
 
@@ -46,21 +46,22 @@ void AppLocker::setLock()
             pinCode.clear();
             ui->stackedWidget->setCurrentIndex(1);
             ui->unlockLineEdit->clear();
-            ui->buttonBox->button(QDialogButtonBox::Ok)->setText("Lock");
+            ui->buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Lock"));
             ui->buttonBox->button(QDialogButtonBox::Cancel)->setVisible(true);
+            Q_EMIT lockingApp(false);
         }else{
-            QMessageBox::warning(this, "Error", "PIN code is not correct", QMessageBox::Ok);
+            QMessageBox::warning(this, tr("Error"), tr("PIN code is not correct"), QMessageBox::Ok);
         }
         break;
     case 1:
         if(ui->pinLineEdit->text().isEmpty() || ui->confirmLineEdit->text().isEmpty()){
-            QMessageBox::information(this, "Empty field", "Please enter and confirm your pin code", QMessageBox::Ok);
+            QMessageBox::information(this, tr("Empty field"), tr("Please enter and confirm your pin code"), QMessageBox::Ok);
             return;
         }else if(ui->pinLineEdit->text().size() < 5){
-            QMessageBox::information(this, "Error", "PIN code must be at least 6 digits long", QMessageBox::Ok);
+            QMessageBox::information(this, tr("Error"), tr("PIN code must be at least 6 digits long"), QMessageBox::Ok);
             return;
         }else if(ui->pinLineEdit->text() != ui->confirmLineEdit->text()){
-            QMessageBox::warning(this, "Error", "PIN code doesn't match, please check again", QMessageBox::Ok);
+            QMessageBox::warning(this, tr("Error"), tr("PIN code doesn't match, please check again"), QMessageBox::Ok);
             return;
         }else{
             walletLocked = true;
@@ -68,10 +69,11 @@ void AppLocker::setLock()
             ui->pinLineEdit->clear();
             ui->confirmLineEdit->clear();
             ui->stackedWidget->setCurrentIndex(0); // move to unlock view
-            ui->buttonBox->button(QDialogButtonBox::Ok)->setText("Unlock");
+            ui->buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Unlock"));
             ui->buttonBox->button(QDialogButtonBox::Cancel)->setVisible(false);
             ui->buttonBox->setEnabled(false);
             ui->unlockLineEdit->setFocus();
+            Q_EMIT lockingApp(true);
         }
         break;
     }
@@ -86,7 +88,7 @@ void AppLocker::showLocker()
 void AppLocker::closeEvent(QCloseEvent *event)
 {
     if(walletLocked){
-        int ret =  QMessageBox::warning(this, "WARNING", "Wallet application will exit, continue?", QMessageBox::Ok | QMessageBox::Cancel, QMessageBox::Cancel);
+        int ret =  QMessageBox::warning(this, tr("WARNING"), tr("Wallet application will exit, continue?"), QMessageBox::Ok | QMessageBox::Cancel, QMessageBox::Cancel);
         if(ret == QMessageBox::Cancel){
             event->ignore();
         }else{
