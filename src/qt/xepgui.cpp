@@ -867,8 +867,11 @@ void XEPGUI::aboutClicked()
 
 void XEPGUI::showDebugWindow()
 {
-    GUIUtil::bringToFront(rpcConsole);
-    Q_EMIT consoleShown(rpcConsole);
+    if(!appLocker->isWalletLocked())
+    {
+        GUIUtil::bringToFront(rpcConsole);
+        Q_EMIT consoleShown(rpcConsole);
+    }
 }
 
 void XEPGUI::showDebugWindowActivateConsole()
@@ -906,25 +909,38 @@ void XEPGUI::gotoHistoryPage()
 
 void XEPGUI::gotoReceiveCoinsPage()
 {
-    receiveCoinsAction->setChecked(true);
-    if (walletFrame) walletFrame->gotoReceiveCoinsPage();
+    if(!appLocker->isWalletLocked())
+    {
+        receiveCoinsAction->setChecked(true);
+        if (walletFrame) walletFrame->gotoReceiveCoinsPage();
+    }
 }
 
 void XEPGUI::gotoSendCoinsPage(QString addr)
 {
-    sendCoinsAction->setChecked(true);
-    if (walletFrame) walletFrame->gotoSendCoinsPage(addr);
+    if(!appLocker->isWalletLocked())
+    {
+        sendCoinsAction->setChecked(true);
+        if (walletFrame) walletFrame->gotoSendCoinsPage(addr);
+    }
 }
 
 void XEPGUI::gotoSignMessageTab(QString addr)
 {
-    if (walletFrame) walletFrame->gotoSignMessageTab(addr);
+    if(!appLocker->isWalletLocked())
+    {
+        if (walletFrame) walletFrame->gotoSignMessageTab(addr);
+    }
 }
 
 void XEPGUI::gotoVerifyMessageTab(QString addr)
 {
-    if (walletFrame) walletFrame->gotoVerifyMessageTab(addr);
+    if(!appLocker->isWalletLocked())
+    {
+        if (walletFrame) walletFrame->gotoVerifyMessageTab(addr);
+    }
 }
+
 void XEPGUI::gotoLoadPSBT(bool from_clipboard)
 {
     if (walletFrame) walletFrame->gotoLoadPSBT(from_clipboard);
@@ -981,13 +997,16 @@ void XEPGUI::updateHeadersSyncProgressLabel()
 
 void XEPGUI::openOptionsDialogWithTab(OptionsDialog::Tab tab)
 {
-    if (!clientModel || !clientModel->getOptionsModel())
-        return;
+    if(!appLocker->isWalletLocked())
+    {
+        if (!clientModel || !clientModel->getOptionsModel())
+            return;
 
-    OptionsDialog dlg(this, enableWallet);
-    dlg.setCurrentTab(tab);
-    dlg.setModel(clientModel->getOptionsModel());
-    dlg.exec();
+        OptionsDialog dlg(this, enableWallet);
+        dlg.setCurrentTab(tab);
+        dlg.setModel(clientModel->getOptionsModel());
+        dlg.exec();
+    }
 }
 
 void XEPGUI::setNumBlocks(int count, const QDateTime& blockDate, double nVerificationProgress, bool header, SynchronizationState sync_state)
