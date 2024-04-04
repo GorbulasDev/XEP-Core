@@ -8,7 +8,6 @@
 
 #include <arith_uint256.h>
 #include <chain.h>
-//#include <logging.h>
 #include <primitives/block.h>
 #include <sync.h>
 #include <uint256.h>
@@ -49,29 +48,6 @@ static inline const CBlockIndex* GetASERTReferenceBlockForAlgo(const CBlockIndex
     }
     return pindex;
 }
-
-// Note that calling this function as part of the difficulty calculation for every block results in a time complexity of O(n^2)
-// with respect to the number of blocks in the chain as it must count back to the reference block each time it is called while syncing
-/*static inline const CBlockIndex* GetASERTReferenceBlockAndHeightForAlgo(const CBlockIndex* pindex, const uint32_t nProofOfWorkLimit, const int nASERTStartHeight, const int algo, uint32_t& nBlocksPassed)
-{
-    nBlocksPassed = 1; // Account for the ASERT reference block here
-
-    if (!pindex)
-        return pindex;
-
-    while (pindex->nHeight >= nASERTStartHeight) {
-        const CBlockIndex* pprev = GetLastBlockIndexForAlgo(pindex->pprev, algo);
-        if (pprev) {
-            pindex = pprev;
-        } else {
-            break;
-        }
-
-        //if (pindex->nBits != (nProofOfWorkLimit - 1))
-        nBlocksPassed++;
-    }
-    return pindex;
-}*/
 
 unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader *pblock, const Consensus::Params& params)
 {
@@ -191,17 +167,10 @@ unsigned int WeightedTargetExponentialMovingAverage(const CBlockIndex* pindexLas
     bnNew.SetCompactBase256(pindexPrev->nBits);
     int nTargetSpacing = params.nPowTargetSpacing;
     const uint32_t nTargetTimespan = params.nPowTargetTimespan;
-    //nTargetSpacing *= 2; // 160 second block time for PoW + 160 second block time for PoS = 80 second effective block time
     if (!fProofOfStake) {
-        //nTargetSpacing *= (CBlockHeader::AlgoType::ALGO_COUNT - 1); // Multiply by the number of PoW algos
         nTargetSpacing = 10 * 60; // PoW spacing is 10 minutes
     }
     const int nInterval = nTargetTimespan / (nTargetSpacing * 2); // alpha_reciprocal = (N(SMA) + 1) / 2 for same "center of mass" as SMA
-
-    // nActualSpacing must be restricted as to not produce a negative number below
-    // The functionality of this if statement has been moved directly into the calculation of the numerator with the call to std::max
-    //if (nActualSpacing <= -((nInterval - 1) * nTargetSpacing))
-        //nActualSpacing = -((nInterval - 1) * nTargetSpacing) + 1;
 
     const uint32_t numerator = std::max((nInterval - 1) * nTargetSpacing + nActualSpacing, 1);
     const uint32_t denominator = nInterval * nTargetSpacing;
@@ -224,9 +193,7 @@ unsigned int AverageTargetASERT(const CBlockIndex* pindexLast, const CBlockHeade
     const arith_uint256 bnPowLimit = fAlgoMissing ? UintToArith256(params.powLimit[fProofOfStake ? CBlockHeader::AlgoType::ALGO_POS : CBlockHeader::AlgoType::ALGO_POW_SHA256]) : UintToArith256(params.powLimit[algo]);
     const uint32_t nProofOfWorkLimit = bnPowLimit.GetCompactBase256();
     uint32_t nTargetSpacing = params.nPowTargetSpacing;
-    //nTargetSpacing *= 2; // 160 second block time for PoW + 160 second block time for PoS = 80 second effective block time
     if (!fProofOfStake) {
-        //nTargetSpacing *= (CBlockHeader::AlgoType::ALGO_COUNT - 1); // Multiply by the number of PoW algos
         nTargetSpacing = 10 * 60; // PoW spacing is 10 minutes
     }
 
@@ -270,7 +237,7 @@ unsigned int AverageTargetASERT(const CBlockIndex* pindexLast, const CBlockHeade
     }
 
     const int64_t nTimeDiff = pindexPrev->GetBlockTime() - refBlockTimestamp;
-    const uint32_t nHeightDiff = nBlocksPassed; //pindexPrev->nHeight + 1 - pindexReferenceBlock->nHeight;
+    const uint32_t nHeightDiff = nBlocksPassed;
     arith_uint256 refBlockTarget;
 
     // We don't want to recalculate the average of several days' worth of block targets here every single time, so instead we cache the average and start height
@@ -285,7 +252,6 @@ unsigned int AverageTargetASERT(const CBlockIndex* pindexLast, const CBlockHeade
 
         const uint32_t nBlocksToSkip = nHeightDiff % nASERTBlockTargetsToAverage;
         const CBlockIndex* pindex = pindexPrev;
-        //LogPrintf("nBlocksToSkip = %u\n", nBlocksToSkip);
 
         // Get last block index in averaging window
         for (unsigned int i = 0; i < nBlocksToSkip; i++) {
@@ -294,26 +260,17 @@ unsigned int AverageTargetASERT(const CBlockIndex* pindexLast, const CBlockHeade
 
         if (pindex && nASERTBlockTargetsToAverage > 0 && nHeight >= nASERTStartHeight + nASERTBlockTargetsToAverage && nHeightDiff >= nASERTBlockTargetsToAverage) {
             const CBlockIndex* pindexWindowEnd = pindex;
-            //LogPrintf("pindexWindowEnd->nHeight = %u, pindexWindowEnd->GetBlockHash() = %s\n", pindexWindowEnd->nHeight, pindexWindowEnd->GetBlockHash().ToString().c_str());
 
             if (!fUseCache || nTargetCacheHeight != static_cast<int>(pindexWindowEnd->nHeight) || nTargetCacheAlgo != algo || nTargetCacheHeightHash != pindexWindowEnd->GetBlockHash() ||
                 refBlockTargetCache == arith_uint256() || fAlgoMissing) {
-                //unsigned int nBlocksAveraged = 0;
-                //bool fAvgGenesis = false;
                 for (int i = 0; i < static_cast<int>(nASERTBlockTargetsToAverage); i++) {
                     // Don't add min difficulty targets to the average
                     if (pindex->nBits != (nProofOfWorkLimit - 1) || !params.fPowAllowMinDifficultyBlocks) {
                         arith_uint256 bnTarget = arith_uint256().SetCompactBase256(pindex->nBits);
                         refBlockTarget += bnTarget / nASERTBlockTargetsToAverage;
-                        //++nBlocksAveraged;
-                        //if (pindex->GetBlockHash() == params.hashGenesisBlock) {
-                            //LogPrintf("Averaging genesis block target\n");
-                            //fAvgGenesis = true;
-                        //}
                     } else {
                         // Average one more block to make up for the one we skipped
                         --i;
-                        //LogPrintf("Skipping min difficulty block %s at nHeight %i\n", pindex->GetBlockHash().ToString().c_str(), pindex->nHeight);
                     }
 
                     pindex = fAlgoMissing ? GetLastBlockIndex(pindex->pprev, fProofOfStake) : GetLastBlockIndexForAlgo(pindex->pprev, algo);
@@ -322,20 +279,14 @@ unsigned int AverageTargetASERT(const CBlockIndex* pindexLast, const CBlockHeade
                         break;
                     }
                 }
-                //LogPrintf("nBlocksAveraged = %u\n", nBlocksAveraged);
-                //assert(fAvgGenesis || nBlocksAveraged == nASERTBlockTargetsToAverage);
-                //if (pindex)
-                    //LogPrintf("pindexWindowStart->nHeight = %i\n", pindex->nHeight);
                 if (fUseCache) {
                     refBlockTargetCache = refBlockTarget;
                     nTargetCacheHeight = pindexWindowEnd->nHeight;
                     nTargetCacheAlgo = algo;
                     nTargetCacheHeightHash = pindexWindowEnd->GetBlockHash();
-                    //LogPrintf("Set average target cache at nHeight = %u with algo = %i\n", nHeight, algo);
                 }
             } else {
                 refBlockTarget = refBlockTargetCache;
-                //LogPrintf("Using average target cache at nHeight = %u with algo = %i\n", nHeight, algo);
             }
         } else {
             if (fUseCache && !fAlgoMissing) {
@@ -344,7 +295,6 @@ unsigned int AverageTargetASERT(const CBlockIndex* pindexLast, const CBlockHeade
                     nTargetCacheHeight = -1;
                     nTargetCacheAlgo = algo;
                     nTargetCacheHeightHash = uint256();
-                    //LogPrintf("Set ref target cache at nHeight = %u with algo = %i\n", nHeight, algo);
                 }
                 refBlockTarget = refBlockTargetCache;
             } else
@@ -352,7 +302,6 @@ unsigned int AverageTargetASERT(const CBlockIndex* pindexLast, const CBlockHeade
         }
     }
 
-    //LogPrintf("nHeight = %u, algo = %i, refBlockTarget = %s\n", nHeight, algo, refBlockTarget.ToString().c_str());
     arith_uint256 bnNew(refBlockTarget);
     const int64_t dividend = nTimeDiff - nTargetSpacing * nHeightDiff;
     const bool fPositive = dividend >= 0;
@@ -362,13 +311,6 @@ unsigned int AverageTargetASERT(const CBlockIndex* pindexLast, const CBlockHeade
     // We are using uint512 rather than uint64_t here because a nPowTargetTimespan of more than 3 days in the divisor may cause the following cubic approximation to overflow a uint64_t
     arith_uint512 numerator(1);
     arith_uint512 denominator(1);
-    // Alternatively, ensure that the nPowTargetTimespan (divisor) is small enough such that (2*2*2) * (4 + 11 + 35 + 50) * (divisor)^3 < (2^64 - 1) which is the uint64_t maximum value to leave some room and make overflow extremely unlikely
-    //assert(divisor <= (3 * 24 * 60 * 60));
-    // Keep in mind that a large exponent due to being extremely far ahead or behind schedule, especially in case of reviving an abandoned chain, will also lead to overflowing the numerator, so a less accurate approximation should be used in this case
-    //uint64_t numerator = 1;
-    //uint64_t denominator = 1;
-
-    //LogPrintf("nHeight = %u, algo = %i is %s schedule, nTimeDiff = %li, ideal = %u, exponent = %i\n", nHeight, algo, fPositive ? "behind" : "ahead of", nTimeDiff, nTargetSpacing * nHeightDiff, exponent);
     if (fPositive) {
         if (exponent > 0) {
             // Left shifting the numerator is equivalent to multiplying it by a power of 2
@@ -376,15 +318,10 @@ unsigned int AverageTargetASERT(const CBlockIndex* pindexLast, const CBlockHeade
         }
 
         if (remainder != 0) { // Approximate 2^x with (4x^3+11x^2+35x+50)/50 for 0<x<1 (must be equal to 1 at x=0 and equal to 2 at x=1 to avoid discontinuities) - note: x+1 and (3x^2+7x+10)/10 are also decent and less complicated approximations
-            //numerator *= remainder + divisor; // x+1
-            //denominator *= divisor;
-
             const arith_uint512 bnDivisor(divisor);
             const arith_uint512 bnRemainder(remainder);
             numerator = numerator * ((4 * bnRemainder*bnRemainder*bnRemainder) + (11 * bnRemainder*bnRemainder * bnDivisor) + (35 * bnRemainder * bnDivisor*bnDivisor) + (50 * bnDivisor*bnDivisor*bnDivisor));
             denominator = denominator * (50 * bnDivisor*bnDivisor*bnDivisor);
-            //numerator = numerator * ((4lu * remainder*remainder*remainder) + (11lu * remainder*remainder * divisor) + (35lu * remainder * divisor*divisor) + (50lu * divisor*divisor*divisor));
-            //denominator = denominator * (50lu * divisor*divisor*divisor);
         }
     } else {
         if (exponent < 0) {
@@ -393,33 +330,19 @@ unsigned int AverageTargetASERT(const CBlockIndex* pindexLast, const CBlockHeade
         }
 
         if (remainder != 0) { // Approximate 2^x with (4x^3+11x^2+35x+50)/50 for 0<x<1 (must be equal to 1 at x=0 and equal to 2 at x=1 to avoid discontinuities) - note: x+1 and (3x^2+7x+10)/10 are also decent and less complicated approximations
-            //numerator *= divisor;
-            //denominator *= remainder + divisor; // x+1
-
             const arith_uint512 bnDivisor(divisor);
             const arith_uint512 bnRemainder(remainder);
             numerator = numerator * (50 * bnDivisor*bnDivisor*bnDivisor);
             denominator = denominator * ((4 * bnRemainder*bnRemainder*bnRemainder) + (11 * bnRemainder*bnRemainder * bnDivisor) + (35 * bnRemainder * bnDivisor*bnDivisor) + (50 * bnDivisor*bnDivisor*bnDivisor));
-            //numerator = numerator * (50lu * divisor*divisor*divisor);
-            //denominator = denominator * ((4lu * remainder*remainder*remainder) + (11lu * remainder*remainder * divisor) + (35lu * remainder * divisor*divisor) + (50lu * divisor*divisor*divisor));
         }
     }
 
     // Keep in mind the order of operations and integer division here - this is why the *= operator cannot be used, as it could cause overflow or integer division to occur
     arith_uint512 bnNew512(arith_uint512(bnNew) * numerator / denominator);
-    //arith_uint512 bnNew512(arith_uint512(bnNew) * arith_uint512(numerator) / arith_uint512(denominator));
     bnNew = bnNew512.trim256();
-
-    //LogPrintf("numerator = %s\n", numerator.trim256().ToString().c_str());
-    //LogPrintf("denominator = %s\n", denominator.trim256().ToString().c_str());
-    //LogPrintf("numerator = %lu\n", numerator);
-    //LogPrintf("denominator = %lu\n", denominator);
-    //LogPrintf("10000 * 2^(%li/%u) = %s\n", dividend, divisor, arith_uint512((10000 * arith_uint512(numerator)) / arith_uint512(denominator)).trim256().ToString().c_str());
     if (bnNew512 > arith_uint512(bnPowLimit) || bnNew == arith_uint256())
         return nProofOfWorkLimit;
 
-    //LogPrintf("bnNew.GetCompactBase256() = %08x\n", bnNew.GetCompactBase256());
-    //LogPrintf("bnNew.GetCompactRoundedBase256() = %08x\n", bnNew.GetCompactRoundedBase256());
     return bnNew.GetCompactRoundedBase256();
 }
 
